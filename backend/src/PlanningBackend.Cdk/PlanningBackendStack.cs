@@ -44,6 +44,8 @@ namespace PlanningBackend.Cdk
                 AssumedBy = new ServicePrincipal("apigateway.amazonaws.com"),
             });
 
+            var functionAsset = Code.FromAsset("./src/PlanningSessionFunctions/PlanningSessionFunctions/bin/Debug/net6.0");
+
             var createSessionHandler = new Function(this, "PlanningCreateSessionHandler", new FunctionProps()
             {
                 Runtime = Runtime.DOTNET_6,
@@ -52,8 +54,8 @@ namespace PlanningBackend.Cdk
                 {
                     {"SESSIONS_TABLE_NAME", tableName}
                 },
-                Code = Code.FromAsset("./src/PlanningSessionsLambda/src/PlanningSessionsLambda/bin/Debug/net6.0"),
-                Handler = "PlanningSessionsLambda::PlanningSessionsLambda.Function::CreateSessionHandler",
+                Code = functionAsset,
+                Handler = "PlanningSessionFunctions::PlanningSessionFunctions.Function::CreateSessionHandler",
                 Role = lambdaHandlerRole
             });
 
@@ -65,14 +67,19 @@ namespace PlanningBackend.Cdk
                 {
                     {"SESSIONS_TABLE_NAME", tableName}
                 },
-                Code = Code.FromAsset("./src/PlanningSessionsLambda/src/PlanningSessionsLambda/bin/Debug/net6.0"),
-                Handler = "PlanningSessionsLambda::PlanningSessionsLambda.Function::JoinSessionHandler",
+                Code = functionAsset,
+                Handler = "PlanningSessionFunctions::PlanningSessionFunctions.Function::JoinSessionHandler",
                 Role = lambdaHandlerRole
             });
 
             var apiGateway = new RestApi(this, "PlanningSessionsApi", new RestApiProps()
             {
-                RestApiName = "PlanningSessionsApi"
+                RestApiName = "PlanningSessionsApi",
+                DefaultCorsPreflightOptions = new CorsOptions
+                {
+                    AllowOrigins = Cors.ALL_ORIGINS,
+                    AllowMethods = Cors.ALL_METHODS,
+                }
             });
 
             apiGateway.Root.AddMethod("ANY");

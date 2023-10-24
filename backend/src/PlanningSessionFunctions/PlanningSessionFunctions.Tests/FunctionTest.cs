@@ -18,7 +18,7 @@ public class FunctionTest
 
         var request = new APIGatewayProxyRequest
         {
-            Body = """{"AdminUsername":""}"""
+            Body = "{\"AdminUsername\":\"\"}"
         };
 
         var response = await function.CreateSessionHandler(request, context);

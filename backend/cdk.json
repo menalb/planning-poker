@@ -1,5 +1,5 @@
 {
-  "app": "dotnet run --project src/PlanningBackend/PlanningBackend.csproj",
+  "app": "dotnet run --project src/PlanningBackend.Cdk/PlanningBackend.Cdk.csproj",
   "watch": {
     "include": [
       "**"
