@@ -5,6 +5,8 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.Lambda.APIGatewayEvents;
 using Amazon.Lambda.Core;
+using Microsoft.Extensions.DependencyInjection;
+using PlanningSessionFunctions.Handlers;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
@@ -14,10 +16,20 @@ namespace PlanningSessionFunctions;
 public class Function
 {
 
+    private readonly ServiceProvider _serviceProvider;
+
     private readonly AmazonDynamoDBClient _dynamoDbClient;
     private readonly string TableName = Environment.GetEnvironmentVariable("SESSIONS_TABLE_NAME") ?? throw new ArgumentException("SESSIONS_TABLE_NAME");
     public Function()
     {
+        _serviceProvider = ConfigureServices();
+
+        _dynamoDbClient = new AmazonDynamoDBClient();
+    }
+
+    public Function(ServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
         _dynamoDbClient = new AmazonDynamoDBClient();
     }
 
@@ -135,48 +147,26 @@ public class Function
     public async Task<APIGatewayProxyResponse> GetSessionHandler(APIGatewayProxyRequest request, ILambdaContext context)
     {
         var sessionId = request.PathParameters["session"];
-        
+
         if (string.IsNullOrEmpty(sessionId))
         {
-            return new APIGatewayProxyResponse()
-            {
-                StatusCode = (int)HttpStatusCode.BadRequest,
-                Headers = new Dictionary<string, string>
-                 {
-                     { "Content-Type", "application/json" },
-                     {"Access-Control-Allow-Origin", "*"},
-                     {"Access-Control-Allow-Methods", "*"},
-                 }
-            };
+            return ApiGatewayResponse.BadRequest();
         }
 
-        var session = await GetSession(sessionId);
+
+        using var scope = _serviceProvider.CreateScope();
+        var query = scope
+            .ServiceProvider
+            .GetRequiredService<GetSessionHandler>();
+
+        var session = await query.GetSession(sessionId);
 
         if (session is not null)
         {
-            return new APIGatewayProxyResponse()
-            {
-                StatusCode = (int)HttpStatusCode.OK,
-                Headers = new Dictionary<string, string>
-                 {
-                     { "Content-Type", "application/json" },
-                     {"Access-Control-Allow-Origin", "*"},
-                     {"Access-Control-Allow-Methods", "*"},
-                 },
-                Body = JsonSerializer.Serialize(session)
-            };
+            return ApiGatewayResponse.OK(session);
         }
 
-        return new APIGatewayProxyResponse()
-        {
-            StatusCode = (int)HttpStatusCode.NotFound,
-            Headers = new Dictionary<string, string>
-                 {
-                     { "Content-Type", "application/json" },
-                     {"Access-Control-Allow-Origin", "*"},
-                     {"Access-Control-Allow-Methods", "*"},
-                 }
-        };
+        return ApiGatewayResponse.NotFound();
     }
 
     private async Task<PlanningSession?> GetSession(string sessionId)
@@ -201,5 +191,16 @@ public class Function
         public string AdminId { get; set; }
         [DynamoDBProperty("Participants")]
         public List<string> Participants { get; set; }
+    }
+
+    private ServiceProvider ConfigureServices()
+    {
+        var serviceCollection = new ServiceCollection();
+
+        serviceCollection.AddScoped<IAmazonDynamoDB, AmazonDynamoDBClient>();
+        serviceCollection.AddScoped<IDynamoDBContext, DynamoDBContext>();
+        serviceCollection.AddScoped<GetSessionHandler>();
+
+        return serviceCollection.BuildServiceProvider();
     }
 }
