@@ -76,7 +76,7 @@ public class Function
     {
         var sessionId = request.PathParameters["session"];
 
-        var command = JsonSerializer.Deserialize<JoinSessionCommand>(request.Body);
+        var command = JsonSerializer.Deserialize<SessionCommand>(request.Body);
 
         if (command is null || string.IsNullOrEmpty(command.Username) || string.IsNullOrEmpty(sessionId))
         {
@@ -107,28 +107,6 @@ public class Function
                 await ctx.SaveAsync(session);
             }
 
-            // UpdateItemRequest update = new(
-            //     TableName,
-            //     new Dictionary<string, AttributeValue>
-            //     {
-            //         {"SessionId", new AttributeValue(sessionId)}
-            //     },
-            //     new Dictionary<string, AttributeValueUpdate>
-            //     {
-            //         {
-            //             "Participants",
-            //             new AttributeValueUpdate(
-            //                 new AttributeValue
-            //                 {
-            //                     SS = new List<string>{ command.Username }
-            //                 },
-            //                 AttributeAction.PUT
-            //                 )
-            //         }
-            //     });
-
-            // await _dynamoDbClient.UpdateItemAsync(update);
-
             return new APIGatewayProxyResponse()
             {
                 StatusCode = (int)HttpStatusCode.OK,
@@ -137,7 +115,55 @@ public class Function
                      { "Content-Type", "application/json" },
                      {"Access-Control-Allow-Origin", "*"},
                      {"Access-Control-Allow-Methods", "*"},
+                 },
+                Body = JsonSerializer.Serialize(session)
+            };
+        }
+
+        return new APIGatewayProxyResponse()
+        {
+            StatusCode = (int)HttpStatusCode.NotFound,
+            Headers = new Dictionary<string, string>
+                 {
+                     { "Content-Type", "application/json" },
+                     {"Access-Control-Allow-Origin", "*"},
+                     {"Access-Control-Allow-Methods", "*"},
                  }
+        };
+    }
+
+    public async Task<APIGatewayProxyResponse> GetSessionHandler(APIGatewayProxyRequest request, ILambdaContext context)
+    {
+        var sessionId = request.PathParameters["session"];
+        
+        if (string.IsNullOrEmpty(sessionId))
+        {
+            return new APIGatewayProxyResponse()
+            {
+                StatusCode = (int)HttpStatusCode.BadRequest,
+                Headers = new Dictionary<string, string>
+                 {
+                     { "Content-Type", "application/json" },
+                     {"Access-Control-Allow-Origin", "*"},
+                     {"Access-Control-Allow-Methods", "*"},
+                 }
+            };
+        }
+
+        var session = await GetSession(sessionId);
+
+        if (session is not null)
+        {
+            return new APIGatewayProxyResponse()
+            {
+                StatusCode = (int)HttpStatusCode.OK,
+                Headers = new Dictionary<string, string>
+                 {
+                     { "Content-Type", "application/json" },
+                     {"Access-Control-Allow-Origin", "*"},
+                     {"Access-Control-Allow-Methods", "*"},
+                 },
+                Body = JsonSerializer.Serialize(session)
             };
         }
 
@@ -158,25 +184,11 @@ public class Function
         using var ctx = new DynamoDBContext(_dynamoDbClient);
 
         var sessions = await ctx.QueryAsync<PlanningSession>(sessionId).GetRemainingAsync();
-        
-
-        // var get = new QueryRequest
-        // {
-        //     TableName = TableName,
-        //     KeyConditionExpression = "SessionId = :id",
-        //     ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-        //     {
-        //         {":id", new AttributeValue { S =  sessionId }}
-        //     }
-        // };
-
-        // var session = await _dynamoDbClient.QueryAsync(get);
-
 
         return sessions.FirstOrDefault();
     }
 
-    record JoinSessionCommand(string Username);
+    record SessionCommand(string Username);
 
     [DynamoDBTable("planning-sessions")]
     public class PlanningSession

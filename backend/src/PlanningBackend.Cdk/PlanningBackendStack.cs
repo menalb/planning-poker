@@ -72,6 +72,19 @@ namespace PlanningBackend.Cdk
                 Role = lambdaHandlerRole
             });
 
+            var getSessionHandler = new Function(this, "PlanningGetSessionHandler", new FunctionProps()
+            {
+                Runtime = Runtime.DOTNET_6,
+                Timeout = Duration.Seconds(30),
+                Environment = new Dictionary<string, string>(1)
+                {
+                    {"SESSIONS_TABLE_NAME", tableName}
+                },
+                Code = functionAsset,
+                Handler = "PlanningSessionFunctions::PlanningSessionFunctions.Function::GetSessionHandler",
+                Role = lambdaHandlerRole
+            });
+
             var apiGateway = new RestApi(this, "PlanningSessionsApi", new RestApiProps()
             {
                 RestApiName = "PlanningSessionsApi",
@@ -92,6 +105,8 @@ namespace PlanningBackend.Cdk
 
             var joinResource = sessionResource.AddResource("join");
             joinResource.AddMethod("POST", new LambdaIntegration(joinSessionHandler));
+
+            sessionResource.AddMethod("GET", new LambdaIntegration(getSessionHandler));
 
             table.GrantReadWriteData(lambdaHandlerRole);
         }
